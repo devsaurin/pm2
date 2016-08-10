@@ -10,9 +10,10 @@ var Log       = require('../lib/API/Log');
 var cst       = require('../constants.js');
 var pkg       = require('../package.json');
 var path      = require('path');
+var fs        = require('fs');
+var async     = require('async');
+var tree      = require('../lib/tools/pretty-tree/pretty-tree.js');
 var pm2;
-
-//process.env.PM2_SILENT = 'true';
 
 commander.version(pkg.version)
   .option('--raw', 'raw log output')
@@ -49,6 +50,96 @@ commander.command('start <file|json_file>')
 
     pm2.connect(function() {
       run(cmd, opts);
+    });
+  });
+
+commander.command('gen')
+  .option('--cwd [path]')
+  .description('generate Dockerfile with current running apps, modules and right node.js version')
+  .action(function(opts) {
+
+    var Common = require('../lib/Common.js');
+    var chalk = require('chalk');
+    PM2.list(function(err, procs) {
+      // does not work with nodejs 0.12
+      console.log('procs=%d nodejs_version=%s', procs.length, process.versions.node.split('.')[0]);
+      var cwd = opts.cwd ? path.resolve(opts.cwd) : process.cwd();
+      console.log('cwd=%s', cwd);
+
+      function hasProcessFile(cwd, cb) {
+        var possible_files = ['process.yml',
+                              'process.json',
+                              'processes.yml',
+                              'processes.json',
+                              'ecosystem.yml',
+                              'ecosystem.json']
+
+        async.forEachLimit(possible_files, 1, function(filename, next) {
+          var full_path = path.join(cwd, filename);
+
+          fs.access(full_path, function(err) {
+            if (err)
+              return next();
+            return next(full_path);
+          });
+        }, function(has_conf) {
+          return cb(null, has_conf);
+        });
+      }
+
+      var str = tree({
+        nodes: [{
+          label : 'api',
+          leaf : {
+              instances : '4',
+              script : './api.js',
+              max_memory_restart : '200M',
+              env : {
+                NODE_ENV : 'development'
+              },
+              env_production : {
+                NODE_ENV : 'production'
+              }
+          }
+        }, {
+          label : 'worker',
+          leaf : {
+            instances : '1',
+            script : './worker.js'
+          }
+        }]
+      });
+
+      var modules = tree({
+        label: 'modules',
+        leaf: {
+          'pm2-server-monit' : {
+            version : '2'
+          }
+        }
+      });
+
+      console.log(chalk.bold('Applications'));
+      console.log(str);
+      console.log(modules);
+      // , {
+      //   label : 'modules',
+      //   leaf : {
+      //     'pm2-server-monit' : '2.0'
+      //   }
+      // }, {
+      //   label : 'system',
+      //   leaf : {
+      //     'node.js version' : process.versions.node.split('.')[0]
+      //   }
+      // }
+
+
+      hasProcessFile(cwd, function(err, filepath) {
+        console.log(Common.parseConfig(fs.readFileSync(filepath), filepath));
+      });
+      // Group by app and by modules
+      PM2.disconnect();
     });
   });
 

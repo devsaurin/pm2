@@ -8,6 +8,7 @@
 - Faster installation (v1: ~30secs, v2: ~10secs)
 - Faster `pm2 update` with Keymetrics linking delayed at the end
 - Much better Module system with raw NPM feedback
+- Easier Keymetrics integration in third party cloud system via env variables
 - Better Windows support
 - **pm2-docker** command with his official [Docker image](https://github.com/keymetrics/pm2-docker-alpine) + json output + auto exit
 - **pm2-dev -> pmd** command enhanced (better log output, post-exec cmd)
@@ -16,6 +17,7 @@
 
 The new PM2 API is greatly tested and well designed:
 
+- Add script started at and script stopped at in app logs
 ```javascript
 var PM2 = require('pm2');
 
